@@ -187,7 +187,91 @@ class QM9(AtomsData):
                 evilmols.append(int(line.split()[0]))
         np.save(self.evilmols_path, np.array(evilmols))
 
+
+    # ITF: This alternative _load_data function includes code to do two things:
+    #
+    #  1) Load JCESR data from a file rather than fetching QM9 data. (Edit code to set path.)
+    #
+    #  2) Computes something different than energy_U0, either:
+    #
+    #     a) Predict [G4MP2-0K - energy_U0] rather than energy_U0 
+    #     b) Predict G4MP2-0K rather than energy_U0
+    #
+    #  (Edit the code to do one or the other.)
+    #
+    # Ideally we would modify SchNetPack more broadly to compute and store Qm9, G4MP2, and differences,
+    # and train on one or the other according to some command-line option.
+    # The approach taken here is much uglier but involves only localized changes.
+    #
+    # The two major changes to the original _load_data are highlighted below.
+    #
     def _load_data(self):
+        logging.info('Downloading GDB-9 data...')
+        tmpdir = tempfile.mkdtemp('gdb9')
+
+        # ******* 1) First significant change: *******
+        #   Read JCESR data from local storage rather than fetching QM9 file from remote location
+        raw_path = '/home/foster/schnetpack/JCESR_configs_g4mp2'
+        # ********************************************
+
+        logging.info('Parse xyz files...')
+        with connect(self.dbpath) as con:
+            files = sorted(os.listdir(raw_path))
+            # Next line failed at one point, I should try it again some time
+            #ordered_files = sorted(os.listdir(raw_path), key=lambda x: (int(re.sub('\D', '', x)), x))
+            ordered_files = sorted(os.listdir(raw_path))
+            for i, xyzfilename in enumerate(ordered_files):
+                xyzfile = os.path.join(raw_path, xyzfilename)
+                if (i + 1) % 10000 == 0:
+                    logging.info('Parsed: {:6d} / 133885'.format(i + 1))
+                properties = {}
+                tmp = os.path.join(tmpdir, 'tmp.xyz')
+  
+                with open(xyzfile, 'r') as f:
+                    lines = f.readlines()
+                    # Extract QM9 data from second line
+                    l = lines[1].split()[2:]
+                    for pn, p in zip(self.properties, l):
+                        properties[pn] = float(p) * self.units[pn]
+
+                    # Read through rest of file and:
+                    #  a) write lines up to G4MP2 to a file for some reason (that's in original code)
+                    #  b) extract G4MP2 numbers and add to "properties" list (this is new) (note: they are not scaled)
+                    with open(tmp, "wt") as fout:
+                        preJESCR = True
+                        for line in lines:
+                            if preJESCR:
+                                fout.write(line.replace('*^', 'e'))
+                            else:
+                                if 'G4MP2' in line:
+                                    ls = line.split()
+                                    properties[ls[0]] = float(ls[2])
+                                elif 'Solvation' not in line:
+                                    ls = line.split()
+                                    properties['Solvation-'+ls[0]] = float(ls[1])
+                            if 'InChI' in line:
+                                preJESCR = False
+
+                        # 2) ******* Second significant change: *******
+                        #   Replace energy_U0 with G4MP2-0K - energy_U0
+                        # p = properties['energy_U0']
+                        # properties['energy_U0'] = properties['G4MP2-0K']*Hartree - properties['energy_U0']
+
+                        # Or, replace energy_U0 with G4MP2-0K
+                        properties['energy_U0'] = properties['G4MP2-0K']*Hartree
+                        # *********************************************
+
+                    with open(tmp, 'r') as f:
+                        ats = list(read_xyz(f, 0))[0]
+    
+                    con.write(ats, data=properties)
+        logging.info('Done.')
+
+        shutil.rmtree(tmpdir)
+
+        return True
+
+    def _load_data_orig(self):
         logging.info('Downloading GDB-9 data...')
         tmpdir = tempfile.mkdtemp('gdb9')
         tar_path = os.path.join(tmpdir, 'gdb9.tar.gz')

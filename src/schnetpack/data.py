@@ -86,8 +86,12 @@ class AtomsData(Dataset):
         # get row
         if self.subset is None:
             row = self.asedb.get(int(idx) + 1)
+            # ITF: Add realidx so that we can map results to original data file
+            realidx = idx + 1
         else:
             row = self.asedb.get(int(self.subset[idx]) + 1)
+            # ITF: Add realidx so that we can map results to original data file
+            realidx = self.subset[idx] + 1
         at = self.get_atoms(idx)
 
         # extract properties
@@ -120,6 +124,8 @@ class AtomsData(Dataset):
         properties[Structure.neighbors] = torch.LongTensor(nbh_idx.astype(np.int))
         properties[Structure.cell_offset] = torch.FloatTensor(offsets.astype(np.float32))
         properties['_idx'] = torch.LongTensor(np.array([idx], dtype=np.int))
+        # ITF: Add realidx so that we can map results to original data file
+        properties['_realidx'] = torch.LongTensor(np.array([realidx], dtype=np.int))
 
         if self.collect_triples:
             nbh_idx_j, nbh_idx_k = collect_atom_triples(nbh_idx)

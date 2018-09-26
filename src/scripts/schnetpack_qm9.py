@@ -186,13 +186,13 @@ def evaluate(args, model, property, train_loader, val_loader, test_loader, devic
 
     results = []
     if 'train' in args.split:
-        results.append(['training'] + ['%.5f' % i for i in evaluate_dataset(metrics, model, train_loader, device)])
+        results.append(['training'] + ['%.5f' % i for i in evaluate_dataset(args, 'train', metrics, model, train_loader, device)])
 
     if 'validation' in args.split:
-        results.append(['validation'] + ['%.5f' % i for i in evaluate_dataset(metrics, model, val_loader, device)])
+        results.append(['validation'] + ['%.5f' % i for i in evaluate_dataset(args, 'validation', metrics, model, val_loader, device)])
 
     if 'test' in args.split:
-        results.append(['test'] + ['%.5f' % i for i in evaluate_dataset(metrics, model, test_loader, device)])
+        results.append(['test'] + ['%.5f' % i for i in evaluate_dataset(args, 'test', metrics, model, test_loader, device)])
 
     header = ','.join(header)
     results = np.array(results)
@@ -200,23 +200,31 @@ def evaluate(args, model, property, train_loader, val_loader, test_loader, devic
     np.savetxt(os.path.join(args.modelpath, 'evaluation.csv'), results, header=header, fmt='%s', delimiter=',')
 
 
-def evaluate_dataset(metrics, model, loader, device):
+def evaluate_dataset(args, type, metrics, model, loader, device):
     for metric in metrics:
         metric.reset()
 
-    for batch in loader:
-        batch = {
-            k: v.to(device)
-            for k, v in batch.items()
-        }
-        result = model(batch)
+    # ITF: Code added to write (real_idx, energy_U0, predicted_energy_U0) triples
+    filename = 'OUT-' + type + '-' + args.modelpath + '.csv'
 
-        for metric in metrics:
-            metric.add_batch(batch, result)
+    with open(filename, 'w') as f:
+        for batch in loader:
+            batch = {
+                k: v.to(device)
+                for k, v in batch.items()
+            }
+            result = model(batch)
+
+            for metric in metrics:
+                metric.add_batch(batch, result)
+
+            for i, b, r in zip(batch['_realidx'].cpu().numpy(), batch['energy_U0'].cpu().numpy(), result['y'].cpu().numpy()):
+                f.write('{}, {}, {}\n'.format(i[0], b[0],r[0]))
 
     results = [
         metric.aggregate() for metric in metrics
     ]
+    f.close()
     return results
 
 
