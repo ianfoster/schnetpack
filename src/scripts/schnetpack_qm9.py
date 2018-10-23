@@ -206,6 +206,7 @@ def evaluate_dataset(args, type, metrics, model, loader, device):
 
     # ITF: Code added to write (real_idx, energy_U0, predicted_energy_U0) triples
     filename = 'OUT-' + type + '-' + args.modelpath + '.csv'
+    print('Writing (index, real-energy-U0, predicted-energy-U0) triples to', filename)
 
     with open(filename, 'w') as f:
         for batch in loader:
