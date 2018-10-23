@@ -121,6 +121,7 @@ class Trainer:
         try:
             while True:
                 self.epoch += 1
+                print('   Epoch',self.epoch)
 
                 for h in self.hooks:
                     h.on_epoch_begin(self)
