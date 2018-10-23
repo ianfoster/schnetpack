@@ -211,7 +211,8 @@ class QM9(AtomsData):
 
         # ******* 1) First significant change: *******
         #   Read JCESR data from local storage rather than fetching QM9 file from remote location
-        raw_path = '/home/foster/schnetpack/JCESR_configs_g4mp2'
+        raw_path = '/Users/ian/schnetpack/JCESR_configs_g4mp2'
+        print('Reading data from', raw_path)
         # ********************************************
 
         logging.info('Parse xyz files...')
@@ -253,12 +254,15 @@ class QM9(AtomsData):
                                 preJESCR = False
 
                         # 2) ******* Second significant change: *******
+                        # a) To build a model that predicts the difference between G4MP2 and DFT:
                         #   Replace energy_U0 with G4MP2-0K - energy_U0
-                        # p = properties['energy_U0']
                         # properties['energy_U0'] = properties['G4MP2-0K']*Hartree - properties['energy_U0']
 
-                        # Or, replace energy_U0 with G4MP2-0K
+                        # b) To build a model that predicts the difference G4MP2, given DFT
+                        #   Replace energy_U0 with G4MP2-0K
                         properties['energy_U0'] = properties['G4MP2-0K']*Hartree
+
+                        # c) To build a model that predicts energy_U0, do nothing
                         # *********************************************
 
                     with open(tmp, 'r') as f:
